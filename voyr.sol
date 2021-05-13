@@ -1083,7 +1083,7 @@ contract VOYR_Token is Context, IERC20, Ownable {
 
     // @dev This gives the owner the ability to change the operations wallet if something were to happen
     function setOperationsWallet(address _operationsWallet) external onlyOwner() {
-        address _oldwallet = operationsWallet;
+        address previousOperationsWallet = operationsWallet;
         operationsWallet = _operationsWallet;
         _isExcluded[operationsWallet] = true;
         emit OperationsWalletChanged(operationsWallet, _oldwallet);
