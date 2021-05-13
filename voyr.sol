@@ -700,11 +700,11 @@ contract VOYR_Token is Context, IERC20, Ownable {
     uint256 private constant _presaleUnlockPrice = 10000000000000000;  // This is 0.05 BNB
     uint256 private constant _presaleMinimum = 10000000000000000;  // This is 0.1 BNB - must include 18 zeroes
     uint256 private constant _presaleMaximum = 25000000000000000000;  // This is 20 BNB - must include 18 zeroes
-    uint256 private constant _tokenPerBNB = 10000000;  //10,000,000 - must include the 9 decimals
-    uint256 private constant _lockDurationSeconds = ( 6 * 2592000);  // Number of months times seconds in a 30 day period
-    uint256 totalTokensPresale;
+    uint256 private constant _tokenPerBNB = 10000000;  //10,000,000
+    uint256 private constant _presaleLockDurationSeconds = ( 6 * 2592000);  // Number of months times seconds in a 30 day period
+    uint256 totalTokensTradedPresale;
     uint256 presaleMaxTokens = 200000000000;
-
+    
     mapping (address => bool) private _isExcludedFromFee;
 
     mapping (address => bool) private _isExcluded;
@@ -806,6 +806,10 @@ contract VOYR_Token is Context, IERC20, Ownable {
     constructor () {
         _rOwned[_msgSender()] = _rTotal;
         
+        // Enable the following line for BSC Mainnet deployment
+        //IPancakeSwapV2Router02 _PancakeSwapV2Router = IPancakeSwapV2Router02(0x10ED43C718714eb63d5aA57B78B54704E256024E);
+        // ****ONLY ONE OF THESE TWO LINES SHOULD NOT BE COMMENTED OUT
+        // Enable the following line for BSC Testnet deployment
         IPancakeSwapV2Router02 _PancakeSwapV2Router = IPancakeSwapV2Router02(0xD99D1c33F9fC3444f8101754aBC46c52416550D1);
          // Create a pancakeswap pair for this new token
         pancakeswapV2Pair = IPancakeSwapV2Factory(_PancakeSwapV2Router.factory())
@@ -912,13 +916,13 @@ contract VOYR_Token is Context, IERC20, Ownable {
     */
 
     // @dev This view is to display the wallet owner's locked\available tokens and endTime within dapp
-    function getLockedWalletDetails(address account) public view returns (uint256, uint256, uint256, uint256, uint256) {
+    function getLockedWalletDetails(address account) public view returns (uint256, uint256, uint256, uint256, uint256, uint256) {
         uint256 _startTime = tokenLocks[account].startTime;
         uint256 _endTime = tokenLocks[account].endTime;
         uint256 _totalAmount = tokenLocks[account].amount;
         uint256 _lockedAmount = getTokenLockAmount(account);
-        uint256 _accessibleAmount = getTokenLockAccessible(account);
-        return (_startTime, _endTime, (_totalAmount / 10**9), _lockedAmount, _accessibleAmount);
+        uint256 _accessibleAmount = _totalAmount - _lockedAmount;
+        return (_startTime, _endTime, _totalAmount, _lockedAmount, _accessibleAmount, block.timestamp);
     }
 
     // @dev This function figures the proportion of time that has passed since the start relative to the end date and returns the proportion of tokens accessible
@@ -936,7 +940,7 @@ contract VOYR_Token is Context, IERC20, Ownable {
     // @dev This is the start of the SafeSale registrtation process. This function takes in the presale unlock amount and approves it
     function acceptPresaleUnlockPayment() public payable {
         require(msg.value == _presaleUnlockPrice);
-        require(totalTokensPresale <= presaleMaxTokens);
+        require(totalTokensTradedPresale <= presaleMaxTokens);
         _paidPresale[msg.sender] = true;
         emit presaleUnlockSuccessful(msg.sender, "Thank you, Presale is unlocked!");
     }
@@ -952,9 +956,9 @@ contract VOYR_Token is Context, IERC20, Ownable {
         require(msg.value <= _presaleMaximum); // This is the maximum
         require(_paidPresale[msg.sender]); // make sure they unlocked
         uint256 _tokensFromPayment = ((msg.value / 10**9) * _tokenPerBNB); // count the tokens to give based on value sent in
-        uint256 _lockEndTime = _lockDurationSeconds + block.timestamp; // How long to lock for
+        uint256 _lockEndTime = _presaleLockDurationSeconds + block.timestamp; // How long to lock for
         assignTokenLock(msg.sender, _tokensFromPayment, block.timestamp, _lockEndTime ,"presale");
-        totalTokensPresale = totalTokensPresale.add(_tokensFromPayment / 10**9);
+        totalTokensTradedPresale = totalTokensTradedPresale.add(_tokensFromPayment / 10**9);
         emit presalePaymentSuccessful(msg.sender, "Thank you, Presale payment is Successful!");
     }
 
@@ -982,8 +986,12 @@ contract VOYR_Token is Context, IERC20, Ownable {
         return tokenLockAddresses[_type];
     }
 
-    function checkForWalletWithLockedTokens(address account) public view returns (bool) {
+    function checkWalletPresaleUnlock(address account) public view returns (bool) {
         return _paidPresale[account];
+    }
+
+    function getPresaleDetails() public view returns (uint256, uint256, uint256, uint256, uint256, uint256, uint256){
+        return (_presaleUnlockPrice, _presaleMinimum, _presaleMaximum, _tokenPerBNB, _presaleLockDurationSeconds, totalTokensTradedPresale, presaleMaxTokens)
     }
 
     /** @dev This ends the SafeSale section
